@@ -1,5 +1,5 @@
 <?php
-namespace timgws\test\mongodb;
+namespace timgws\tests\mongodb;
 
 use Illuminate\Database\Capsule\Manager;
 use Jenssegers\Mongodb\Query\Builder;

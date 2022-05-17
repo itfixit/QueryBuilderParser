@@ -1,5 +1,5 @@
 <?php
-namespace timgws\test;
+namespace timgws\tests;
 
 use Carbon\Carbon;
 use timgws\QBParseException;
