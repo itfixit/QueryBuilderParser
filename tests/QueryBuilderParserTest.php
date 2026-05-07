@@ -593,6 +593,9 @@ class QueryBuilderParserTest extends CommonQueryBuilderTests
         $builder = $this->createQueryBuilder();
         $qb = $this->getParserUnderTest();
 
+        // ensure that we can send an empty function, and it will not cause an error
+        $qb->clean('name', null);
+
         $qb->clean('name', function ($value) { return 'Tim'; });
 
         $test = $qb->parse($this->json1, $builder);
@@ -603,6 +606,11 @@ class QueryBuilderParserTest extends CommonQueryBuilderTests
         if (is_array($bindings)) {
             $this->assertEquals(['10.25', 'Tim%', 'Tim'], $bindings['where']);
         }
+
+        // calling clean again on name will raise an exception
+        $this->expectException('\timgws\QBParseException');
+        $this->expectExceptionMessage("Field name already has a clean callback set.");
+        $qb->clean('name', function ($value) { return 'Thomas'; });
     }
 
     public function testNoJsonProvided()
