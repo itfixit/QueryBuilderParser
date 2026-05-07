@@ -587,4 +587,30 @@ class QueryBuilderParserTest extends CommonQueryBuilderTests
 
         print_r($builder->toSql());
     }
+
+    public function testCleanCorrectlyCleansName()
+    {
+        $builder = $this->createQueryBuilder();
+        $qb = $this->getParserUnderTest();
+
+        $qb->clean('name', function ($value) { return 'Tim'; });
+
+        $test = $qb->parse($this->json1, $builder);
+
+        $bindings = $builder->getRawBindings();
+        $this->assertEquals('select * where `price` < ? and (`name` LIKE ? or `name` = ?)', $builder->toSql());
+
+        if (is_array($bindings)) {
+            $this->assertEquals(['10.25', 'Tim%', 'Tim'], $bindings['where']);
+        }
+    }
+
+    public function testNoJsonProvided()
+    {
+        $builder = $this->createQueryBuilder();
+        $qb = $this->getParserUnderTest();
+        $test = $qb->parse('null', $builder);
+
+        $this->assertEquals('select *', $builder->toSql());
+    }
 }
