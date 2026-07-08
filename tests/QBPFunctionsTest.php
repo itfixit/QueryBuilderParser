@@ -1,58 +1,84 @@
 <?php
+
 namespace timgws\tests;
 
 use Carbon\Carbon;
-use timgws\QBParseException;
+use JsonException;
+use ReflectionClass;
+use ReflectionMethod;
+use RuntimeException;
+use timgws\QueryBuilderParser;
 
 /**
- * Class QBPFunctionsTests
+ * Class QBPFunctionsTest
  *
  * Uses reflection to get to one particularly
  *
- * @package timgws\test
+ * @package timgws\tests
  */
-class QBPFunctionsTests extends CommonQueryBuilderTests
+class QBPFunctionsTest extends CommonQueryBuilderTests
 {
-    protected static function getMethod($name) {
-        $class = new \ReflectionClass('\timgws\QueryBuilderParser');
-        $method = $class->getMethod($name);
+    protected static function getMethod(string $name): ReflectionMethod
+    {
+        try {
+            $class = new ReflectionClass(QueryBuilderParser::class);
+            $method = $class->getMethod($name);
+        } catch (\ReflectionException $exception) {
+            throw new RuntimeException($exception->getMessage(), 0, $exception);
+        }
+
+        // noinspection PhpExpressionResultUnusedInspection
         $method->setAccessible(true);
+
         return $method;
     }
 
-    public function testOperatorNotValid()
+    public function testOperatorNotValid(): void
     {
-        $this->expectException('\timgws\QBParseException');
-        $this->expectExceptionMessage("makeQueryWhenArray could not return a value");
-
         $method = self::getMethod('makeQueryWhenArray');
 
         $builder = $this->createQueryBuilder();
         $qb = $this->getParserUnderTest();
-        $rule = json_decode($this->makeJSONForInNotInTest('contains'));
+        try {
+            $rule = json_decode($this->makeJSONForInNotInTest('contains'), false, 512, JSON_THROW_ON_ERROR);
+        } catch (JsonException $exception) {
+            throw new RuntimeException($exception->getMessage(), 0, $exception);
+        }
 
-        $method->invokeArgs($qb, [
-            $builder, $rule->rules[1], array('operator' => 'CONTAINS'), array('AND'), 'AND'
-        ]);
+        $this->assertQBParseExceptionMessage('makeQueryWhenArray could not return a value', function () use ($method, $qb, $builder, $rule): void {
+            $method->invokeArgs($qb, [
+                $builder,
+                $rule->rules[1],
+                ['operator' => 'CONTAINS'],
+                ['AND'],
+                'AND',
+            ]);
+        });
     }
 
-    public function testOperatorNotValidForNull()
+    public function testOperatorNotValidForNull(): void
     {
-        $this->expectException('\timgws\QBParseException');
-        $this->expectExceptionMessage("makeQueryWhenNull was called on an SQL operator that is not null");
-
         $method = self::getMethod('makeQueryWhenNull');
 
         $builder = $this->createQueryBuilder();
         $qb = $this->getParserUnderTest();
-        $rule = json_decode($this->makeJSONForInNotInTest('contains'));
+        try {
+            $rule = json_decode($this->makeJSONForInNotInTest('contains'), false, 512, JSON_THROW_ON_ERROR);
+        } catch (JsonException $exception) {
+            throw new RuntimeException($exception->getMessage(), 0, $exception);
+        }
 
-        $method->invokeArgs($qb, [
-            $builder, $rule->rules[1], array('operator' => 'CONTAINS'), array('AND'), 'AND'
-        ]);
+        $this->assertQBParseExceptionMessage('makeQueryWhenNull was called on an SQL operator that is not null', function () use ($method, $qb, $builder, $rule): void {
+            $method->invokeArgs($qb, [
+                $builder,
+                $rule->rules[1],
+                ['operator' => 'CONTAINS'],
+                'AND',
+            ]);
+        });
     }
 
-    public function testDate()
+    public function testDate(): void
     {
         $method = self::getMethod('convertDatetimeToCarbon');
 
@@ -65,7 +91,7 @@ class QBPFunctionsTests extends CommonQueryBuilderTests
         $this->assertEquals('12', $carbonDate->month);
     }
 
-    public function testDateArray()
+    public function testDateArray(): void
     {
         $method = self::getMethod('convertDatetimeToCarbon');
 

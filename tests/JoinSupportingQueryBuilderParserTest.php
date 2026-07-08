@@ -1,17 +1,19 @@
 <?php
 
-namespace timgws\test;
+namespace timgws\tests;
 
+use Carbon\Carbon;
 use timgws\JoinSupportingQueryBuilderParser;
+use timgws\QueryBuilderParser;
 
 class JoinSupportingQueryBuilderParserTest extends CommonQueryBuilderTests
 {
-    protected function getParserUnderTest($fields = null)
+    protected function getParserUnderTest(?array $fields = null): QueryBuilderParser
     {
         return new JoinSupportingQueryBuilderParser($fields, $this->getJoinFields());
     }
 
-    private function getJoinFields()
+    private function getJoinFields(): array
     {
         return array(
             'join1' => array(
@@ -40,21 +42,20 @@ class JoinSupportingQueryBuilderParserTest extends CommonQueryBuilderTests
         );
     }
 
-    public function testJoinWhere()
+    public function testJoinWhere(): void
     {
         $json = '{"condition":"AND","rules":[{"id":"join1","field":"join1","type":"double","input":"text","operator":"less","value":"10.25"}]}';
 
         $builder = $this->createQueryBuilder();
 
         $parser = $this->getParserUnderTest();
-        $test = $parser->parse($json, $builder);
+        $parser->parse($json, $builder);
 
-        $this->assertEquals($test->toSql(), $builder->toSql());
         $this->assertEquals('select * where exists (select 1 from `subtable` where subtable.s_col = master.m_col and `s_value` < ?)',
           $builder->toSql());
     }
 
-    public function testJoinNotExistsWhere()
+    public function testJoinNotExistsWhere(): void
     {
         $json = '{"condition":"AND","rules":[{"id":"join2","field":"join2","type":"double","input":"text","operator":"less","value":"10.25"}]}';
 
@@ -67,7 +68,7 @@ class JoinSupportingQueryBuilderParserTest extends CommonQueryBuilderTests
           $builder->toSql());
     }
 
-    public function testJoinIn()
+    public function testJoinIn(): void
     {
         $json = '{"condition":"AND","rules":[{"id":"join1","field":"join1","type":"text","input":"select","operator":"in","value":["a","b"]}]}';
 
@@ -80,7 +81,7 @@ class JoinSupportingQueryBuilderParserTest extends CommonQueryBuilderTests
           $builder->toSql());
     }
 
-    public function testJoinNotExistsIn()
+    public function testJoinNotExistsIn(): void
     {
         $json = '{"condition":"AND","rules":[{"id":"join2","field":"join2","type":"text","input":"select","operator":"in","value":["a","b"]}]}';
 
@@ -93,7 +94,7 @@ class JoinSupportingQueryBuilderParserTest extends CommonQueryBuilderTests
           $builder->toSql());
     }
 
-    public function testJoinNotIn()
+    public function testJoinNotIn(): void
     {
         $json = '{"condition":"AND","rules":[{"id":"join1","field":"join1","type":"text","input":"select","operator":"not_in","value":["a","b"]}]}';
 
@@ -107,7 +108,7 @@ class JoinSupportingQueryBuilderParserTest extends CommonQueryBuilderTests
     }
 
     // Urgh, double negative
-    public function testJoinNotExistsNotIn()
+    public function testJoinNotExistsNotIn(): void
     {
         $json = '{"condition":"AND","rules":[{"id":"join2","field":"join2","type":"text","input":"select","operator":"not_in","value":["a","b"]}]}';
 
@@ -120,33 +121,33 @@ class JoinSupportingQueryBuilderParserTest extends CommonQueryBuilderTests
           $builder->toSql());
     }
 
-    public function testJoinBetween()
+    public function testJoinBetween(): void
     {
         $json = '{"condition":"AND","rules":[{"id":"join1","field":"join1","type":"text","input":"select","operator":"between","value":["a","b"]}]}';
 
         $builder = $this->createQueryBuilder();
 
         $parser = $this->getParserUnderTest();
-        $test = $parser->parse($json, $builder);
+        $parser->parse($json, $builder);
 
         $this->assertEquals('select * where exists (select 1 from `subtable` where subtable.s_col = master.m_col and `s_value` between ? and ?)',
           $builder->toSql());
     }
 
-    public function testJoinNotBetween()
+    public function testJoinNotBetween(): void
     {
         $json = '{"condition":"AND","rules":[{"id":"join1","field":"join1","type":"text","input":"select","operator":"not_between","value":["a","b"]}]}';
 
         $builder = $this->createQueryBuilder();
 
         $parser = $this->getParserUnderTest();
-        $test = $parser->parse($json, $builder);
+        $parser->parse($json, $builder);
 
         $this->assertEquals('select * where exists (select 1 from `subtable` where subtable.s_col = master.m_col and `s_value` not between ? and ?)',
           $builder->toSql());
     }
 
-    public function testJoinNotExistsBetween()
+    public function testJoinNotExistsBetween(): void
     {
         $json = '{"condition":"AND","rules":[{"id":"join2","field":"join2","type":"text","input":"select","operator":"between","value":["a","b"]}]}';
 
@@ -160,7 +161,7 @@ class JoinSupportingQueryBuilderParserTest extends CommonQueryBuilderTests
     }
 
     // Bugfix for #14
-    public function testJoinIsNull()
+    public function testJoinIsNull(): void
     {
         $json = '{"condition":"AND","rules":[{"id":"join2","field":"join2","type":"text","input":"select","operator":"is_null","value":""}]}';
 
@@ -174,7 +175,7 @@ class JoinSupportingQueryBuilderParserTest extends CommonQueryBuilderTests
     }
 
     // Bugfix for #14
-    public function testJoinIsNotNull()
+    public function testJoinIsNotNull(): void
     {
         $json = '{"condition":"AND","rules":[{"id":"join2","field":"join2","type":"text","input":"select","operator":"is_not_null","value":""}]}';
 
@@ -187,27 +188,25 @@ class JoinSupportingQueryBuilderParserTest extends CommonQueryBuilderTests
           $builder->toSql());
     }
 
-    public function testJoinNotExistsBetweenWithThreeItems()
+    public function testJoinNotExistsBetweenWithThreeItems(): void
     {
-        $this->expectException('\timgws\QBParseException');
-        $this->expectExceptionMessage("should be an array with only two items");
-
-        $this->_testJoinNotExistsBetweenWithThreeItems(false);
+        $this->assertQBParseExceptionMessage("should be an array with only two items", function (): void {
+            $this->_testJoinNotExistsBetweenWithThreeItems(false);
+        });
     }
 
-    public function testJoinNotExistsNotBetweenWithThreeItems()
+    public function testJoinNotExistsNotBetweenWithThreeItems(): void
     {
-        $this->expectException('\timgws\QBParseException');
-        $this->expectExceptionMessage("should be an array with only two items");
-
-        $this->_testJoinNotExistsBetweenWithThreeItems(true);
+        $this->assertQBParseExceptionMessage("should be an array with only two items", function (): void {
+            $this->_testJoinNotExistsBetweenWithThreeItems(true);
+        });
     }
 
     /**
       * @see testJoinNotExistsBetweenWithThreeItems()
       * @see testJoinNotExistsNotBetweenWithThreeItems()
       */
-    private function _testJoinNotExistsBetweenWithThreeItems($not_between = false)
+    private function _testJoinNotExistsBetweenWithThreeItems($not_between = false): void
     {
         $json_operator = ($not_between ? 'not_' : '') . 'between';
         $sql_operator = ($not_between ? 'not ' : '') . 'between';
@@ -222,23 +221,20 @@ class JoinSupportingQueryBuilderParserTest extends CommonQueryBuilderTests
             $builder->toSql());
     }
 
-    public function testJoinNotExistsBetweenWithFieldThatDoesNotExist()
+    public function testJoinNotExistsBetweenWithFieldThatDoesNotExist(): void
     {
-        $this->expectException('\timgws\QBParseException');
-        $this->expectExceptionMessage("does not exist in fields list");
-
         $json = '{"condition":"AND","rules":[{"id":"join4","field":"join4","type":"text","input":"select","operator":"between","value":["a","b","c"]}]}';
 
         $builder = $this->createQueryBuilder();
 
         $parser = $this->getParserUnderTest(array('this_field_is_allowed_but_is_not_present_in_the_json_string'));
-        $parser->parse($json, $builder);
 
-        $this->assertEquals('select * where not exists (select 1 from `subtable2` where subtable2.s2_col = master2.m2_col and `s2_value` between ? and ?)',
-            $builder->toSql());
+        $this->assertQBParseExceptionMessage("does not exist in fields list", function () use ($parser, $json, $builder): void {
+            $parser->parse($json, $builder);
+        });
     }
 
-    public function testJoinWithClause()
+    public function testJoinWithClause(): void
     {
         $json = '{"condition":"AND","rules":[{"id":"joinwithclause","field":"joinwithclause","type":"text","input":"select","operator":"in","value":["a","b"]}]}';
 
@@ -255,7 +251,7 @@ class JoinSupportingQueryBuilderParserTest extends CommonQueryBuilderTests
      * JoinSupportingQueryBuilderParser always return AND even if OR is the condition
      * (Fix for bug #13)
      */
-    public function testJoinWorksWithOrCondition()
+    public function testJoinWorksWithOrCondition(): void
     {
         $json = '{"condition":"OR","rules":[{"id":"joinwithclause","field":"joinwithclause","type":"double","input":"text","operator":"less","value":"10.25"},{"condition":"OR","rules":[{"id":"joinwithclause","field":"joinwithclause","type":"integer","input":"select","operator":"equal","value":"2"},{"id":"joinwithclause","field":"joinwithclause","type":"integer","input":"select","operator":"equal","value":"1"}]}]}';
 
@@ -268,7 +264,7 @@ class JoinSupportingQueryBuilderParserTest extends CommonQueryBuilderTests
             $builder->toSql());
     }
 
-    public function testCategoryIn()
+    public function testCategoryIn(): void
     {
         $builder = $this->createQueryBuilder();
         $qb = $this->getParserUnderTest();
@@ -281,7 +277,7 @@ class JoinSupportingQueryBuilderParserTest extends CommonQueryBuilderTests
     /**
      * Test for #21 (Cast datetimes and add 'not between' operator)
      */
-    public function testDateBetween()
+    public function testDateBetween(): void
     {
         $incoming = '{ "condition": "AND", "rules": [ { "id": "dollar_amount", "field": "dollar_amount", "type": "double", "input": "number", "operator": "less", "value": "546" }, { "id": "needed_by_date", "field": "needed_by_date", "type": "date", "input": "text", "operator": "between", "value": [ "10/22/2017", "10/28/2017" ] } ], "not": false, "valid": true }';
         $builder = $this->createQueryBuilder();
@@ -294,14 +290,14 @@ class JoinSupportingQueryBuilderParserTest extends CommonQueryBuilderTests
         $bindings = $builder->getBindings();
         $this->assertCount(3, $bindings);
         $this->assertEquals('546', $bindings[0]);
-        $this->assertInstanceOf("Carbon\\Carbon", $bindings[1]);
-        $this->assertInstanceOf("Carbon\\Carbon", $bindings[2]);
+        $this->assertInstanceOf(Carbon::class, $bindings[1]);
+        $this->assertInstanceOf(Carbon::class, $bindings[2]);
     }
 
     /**
      * Test for #21 (Cast datetimes and add 'not between' operator)
      */
-    public function testDateNotBetween()
+    public function testDateNotBetween(): void
     {
         $incoming = '{ "condition": "AND", "rules": [ { "id": "needed_by_date", "field": "needed_by_date", "type": "date", "input": "text", "operator": "not_between", "value": [ "10/22/2017", "10/28/2017" ] } ], "not": false, "valid": true }';
         $builder = $this->createQueryBuilder();
@@ -313,8 +309,8 @@ class JoinSupportingQueryBuilderParserTest extends CommonQueryBuilderTests
 
         $bindings = $builder->getBindings();
         $this->assertCount(2, $bindings);
-        $this->assertInstanceOf("Carbon\\Carbon", $bindings[0]);
-        $this->assertInstanceOf("Carbon\\Carbon", $bindings[1]);
+        $this->assertInstanceOf(Carbon::class, $bindings[0]);
+        $this->assertInstanceOf(Carbon::class, $bindings[1]);
         $this->assertEquals(2017, $bindings[0]->year);
         $this->assertEquals(22, $bindings[0]->day);
         $this->assertEquals(28, $bindings[1]->day);

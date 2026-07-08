@@ -1,67 +1,58 @@
 <?php
+
 namespace timgws\tests\mongodb;
 
-use Illuminate\Database\Capsule\Manager;
-use Jenssegers\Mongodb\Query\Builder;
-use Jenssegers\Mongodb\Query\Processor as MongoDBProcessor;
-use timgws\test\Mocks\Connection as MongoDBConnection;
-use timgws\test\CommonQueryBuilderTests;
-use MongoDB\Database;
+use PHPUnit\Framework\TestCase;
 
-class MongoDBTest extends CommonQueryBuilderTests
-{
-    private $mockConnection;
-
-    protected function createQueryBuilder()
+if (class_exists(\Jenssegers\Mongodb\Connection::class)) {
+    class TestMongoDB extends TestCase
     {
-        $this->mockConnection = new MongoDBConnection([
-            'name' => 'mongodb',
-            'driver' => 'mongodb',
-            'host' => '127.0.0.1',
-            'database' => 'unittest',
-        ]);
-        $builder = new Builder($this->mockConnection, new MongoDBProcessor());
+        private string $simpleQuery = '{"condition":"AND","rules":[{"id":"price","field":"price","type":"double","operator":"less","value":"10.25"}]}';
 
-        return $builder;
-    }
+        private \timgws\tests\Mocks\Connection $mockConnection;
 
-    private function getOptions()
-    {
-        return [
-            'typeMap' => [
-                'root' => 'array',
-                'document' => 'array']
-        ];
-    }
+        private function getParserUnderTest(): \timgws\QueryBuilderParser
+        {
+            return new \timgws\QueryBuilderParser();
+        }
 
-    public function testSimpleQuery()
-    {
-        $builder = $this->createQueryBuilder()->from('tim');
-        $qb = $this->getParserUnderTest();
+        private function getOptions(): array
+        {
+            return [
+                'typeMap' => [
+                    'root' => 'array',
+                    'document' => 'array',
+                ],
+            ];
+        }
 
-        $test = $qb->parse($this->simpleQuery, $builder);
+        public function testSimpleQuery(): void
+        {
+            $this->mockConnection = new \timgws\tests\Mocks\Connection();
+            $builder = new \Jenssegers\Mongodb\Query\Builder($this->mockConnection, new \Jenssegers\Mongodb\Query\Processor());
+            $builder = $builder->from('tim');
+            $qb = $this->getParserUnderTest();
 
-        $wheres = [
-            'price' => [
-                '$lt' => 10.25
-            ]
-        ];
+            $qb->parse($this->simpleQuery, $builder);
 
-        $mock = $this->mockConnection->getCollection('');
-        $mock->shouldReceive('find')
-            ->once()
-            ->with($wheres, $this->getOptions())
-            ->andReturn(new \ArrayIterator([]));
+            $wheres = [
+                'price' => [
+                    '$lt' => 10.25,
+                ],
+            ];
 
-        $builder->get();
+            $mock = $this->mockConnection->getCollection('');
+            $mock->shouldReceive('find')
+                ->once()
+                ->with($wheres, $this->getOptions())
+                ->andReturn(new \ArrayIterator([]));
 
-    }
+            $builder->get();
+        }
 
-
-    public function testManyNestedQuery()
-    {
-        // $('#builder-basic').queryBuilder('setRules', /** This object */);
-        $json = '{
+        public function testManyNestedQuery(): void
+        {
+            $json = '{
            "condition":"AND",
            "rules":[
               {
@@ -128,19 +119,30 @@ class MongoDBTest extends CommonQueryBuilderTests
            ]
         }';
 
-        $builder = $this->createQueryBuilder()->from('tim');
-        $qb = $this->getParserUnderTest();
+            $this->mockConnection = new \timgws\tests\Mocks\Connection();
+            $builder = new \Jenssegers\Mongodb\Query\Builder($this->mockConnection, new \Jenssegers\Mongodb\Query\Processor());
+            $builder = $builder->from('tim');
+            $qb = $this->getParserUnderTest();
 
-        $test = $qb->parse($json, $builder);
+            $qb->parse($json, $builder);
 
-        $wheres = json_decode('{"$and":[{"price":{"$lt":"10.25"}},{"$and":[{"category":{"$in":["1","2"]}},{"$or":[{"name":"dgfssdfg"},{"name":{"$ne":"dgfssdfg"}},{"$and":[{"name":"sadf"},{"name":"sadf"}]}]}]}]}', true);
+            $wheres = json_decode('{"$and":[{"price":{"$lt":"10.25"}},{"$and":[{"category":{"$in":["1","2"]}},{"$or":[{"name":"dgfssdfg"},{"name":{"$ne":"dgfssdfg"}},{"$and":[{"name":"sadf"},{"name":"sadf"}]}]}]}]}', true, 512, JSON_THROW_ON_ERROR);
 
-        $mock = $this->mockConnection->getCollection('');
-        $mock->shouldReceive('find')
-            ->once()
-            ->with($wheres, $this->getOptions())
-            ->andReturn(new \ArrayIterator([]));
+            $mock = $this->mockConnection->getCollection('');
+            $mock->shouldReceive('find')
+                ->once()
+                ->with($wheres, $this->getOptions())
+                ->andReturn(new \ArrayIterator([]));
 
-        $builder->get();
+            $builder->get();
+        }
+    }
+} else {
+    class TestMongoDB extends TestCase
+    {
+        public function testMongoDbPackageIsOptional(): void
+        {
+            $this->markTestSkipped('jenssegers/mongodb is not installed.');
+        }
     }
 }

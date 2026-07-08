@@ -2,11 +2,9 @@
 
 namespace timgws;
 
-use \Carbon\Carbon;
-use \stdClass;
-use \Illuminate\Database\Query\Builder;
-use \Illuminate\Database\Eloquent\Builder as EloquentBuilder;
-use \timgws\QBParseException;
+use Illuminate\Database\Eloquent\Builder as EloquentBuilder;
+use Illuminate\Database\Query\Builder;
+use stdClass;
 
 class QueryBuilderParser
 {
@@ -14,20 +12,20 @@ class QueryBuilderParser
 
     /**
      * The fields (if any) that we allow to filter on using QBP
-     * @var array|null
      */
-    protected $fields;
+    protected ?array $fields;
 
     /**
      * A list of all the callbacks that can be called to cleanse provided values from QBP
-     * @var array
+     *
+     * @var array<string, callable>
      */
-    private $cleanFieldCallbacks = [];
+    private array $cleanFieldCallbacks = [];
 
     /**
-     * @param array $fields a list of all the fields that are allowed to be filtered by the QueryBuilder
+     * @param array<int, string>|null $fields a list of all the fields that are allowed to be filtered by the QueryBuilder
      */
-    public function __construct(array $fields = null)
+    public function __construct(?array $fields = null)
     {
         $this->fields = $fields;
     }
@@ -37,43 +35,31 @@ class QueryBuilderParser
      *
      * Build a query based on JSON that has been passed into the function, onto the builder passed into the function.
      *
-     * @param $json
-     * @param EloquentBuilder|Builder $querybuilder
-     *
+     * @param mixed $json
      * @throws QBParseException
-     *
-     * @return Builder
      */
-    public function parse($json, EloquentBuilder|Builder $querybuilder)
+    public function parse(mixed $json, EloquentBuilder|Builder $querybuilder): EloquentBuilder|Builder
     {
-        // do a JSON decode (throws exceptions if there is a JSON error...)
         $query = $this->decodeJSON($json);
 
-        // This can happen if the querybuilder had no rules...
-        if (!isset($query->rules) || !is_array($query->rules)) {
+        if (! isset($query->rules) || ! is_array($query->rules)) {
             return $querybuilder;
         }
 
-        // This shouldn't ever cause an issue, but may as well not go through the rules.
         if (count($query->rules) < 1) {
             return $querybuilder;
         }
 
-        return $this->loopThroughRules($query->rules, $querybuilder, $query->condition);
+        return $this->loopThroughRules($query->rules, $querybuilder, $query->condition ?? 'AND');
     }
 
     /**
      * Called by parse, loops through all the rules to find out if nested or not.
      *
-     * @param array $rules
-     * @param EloquentBuilder|Builder $querybuilder
-     * @param string $queryCondition
-     *
+     * @param array<int, stdClass> $rules
      * @throws QBParseException
-     *
-     * @return Builder
      */
-    protected function loopThroughRules(array $rules, EloquentBuilder|Builder $querybuilder, $queryCondition = 'AND')
+    protected function loopThroughRules(array $rules, EloquentBuilder|Builder $querybuilder, ?string $queryCondition = 'AND'): EloquentBuilder|Builder
     {
         foreach ($rules as $rule) {
             /*
@@ -91,18 +77,10 @@ class QueryBuilderParser
 
     /**
      * Determine if a particular rule is actually a group of other rules.
-     *
-     * @param $rule
-     *
-     * @return bool
      */
-    protected function isNested($rule)
+    protected function isNested(stdClass $rule): bool
     {
-        if (isset($rule->rules) && is_array($rule->rules) && count($rule->rules) > 0) {
-            return true;
-        }
-
-        return false;
+        return isset($rule->rules) && is_array($rule->rules) && count($rule->rules) > 0;
     }
 
     /**
@@ -110,30 +88,18 @@ class QueryBuilderParser
      *
      * When a rule is actually a group of rules, we want to build a nested query with the specified condition (AND/OR)
      *
-     * @param EloquentBuilder|Builder $querybuilder
-     * @param stdClass $rule
-     * @param string|null $condition
-     * @return Builder
+     * @throws QBParseException
      */
-    protected function createNestedQuery(EloquentBuilder|Builder $querybuilder, stdClass $rule, $condition = null)
+    protected function createNestedQuery(EloquentBuilder|Builder $querybuilder, stdClass $rule, ?string $condition = null): EloquentBuilder|Builder
     {
-        if ($condition === null) {
-            $condition = $rule->condition;
-        }
-
+        $condition ??= $rule->condition;
         $condition = $this->validateCondition($condition);
 
-        return $querybuilder->whereNested(function ($query) use (&$rule, &$querybuilder, &$condition) {
+        return $querybuilder->whereNested(function ($query) use ($rule): void {
             foreach ($rule->rules as $loopRule) {
-                $function = 'makeQuery';
-
-                if ($this->isNested($loopRule)) {
-                    $function = 'createNestedQuery';
-                }
-
-                $querybuilder = $this->{$function}($query, $loopRule, $rule->condition);
+                $function = $this->isNested($loopRule) ? 'createNestedQuery' : 'makeQuery';
+                $this->{$function}($query, $loopRule, $rule->condition);
             }
-
         }, $condition);
     }
 
@@ -141,18 +107,14 @@ class QueryBuilderParser
      * Check if a given rule is correct.
      *
      * Just before making a query for a rule, we want to make sure that the field, operator and value are set
-     *
-     * @param stdClass $rule
-     *
-     * @return bool true if values are correct.
      */
-    protected function checkRuleCorrect(stdClass $rule)
+    protected function checkRuleCorrect(stdClass $rule): bool
     {
-        if (!isset($rule->operator, $rule->id, $rule->field, $rule->type)) {
+        if (! isset($rule->operator, $rule->id, $rule->field, $rule->type)) {
             return false;
         }
 
-        if (!isset($this->operators[$rule->operator])) {
+        if (! isset($this->operators[$rule->operator])) {
             return false;
         }
 
@@ -161,14 +123,10 @@ class QueryBuilderParser
 
     /**
      * Give back the correct value when we don't accept one.
-     *
-     * @param $rule
-     *
-     * @return null|string
      */
-    protected function operatorValueWhenNotAcceptingOne(stdClass $rule)
+    protected function operatorValueWhenNotAcceptingOne(stdClass $rule): ?string
     {
-        if ($rule->operator == 'is_empty' || $rule->operator == 'is_not_empty') {
+        if ($rule->operator === 'is_empty' || $rule->operator === 'is_not_empty') {
             return '';
         }
 
@@ -180,15 +138,12 @@ class QueryBuilderParser
      *
      * Append/Prepend values for SQL statements, etc.
      *
-     * @param $operator
-     * @param stdClass $rule
-     * @param $value
-     *
+     * @param mixed $operator
+     * @param mixed $value
+     * @return mixed
      * @throws QBParseException
-     *
-     * @return string
      */
-    protected function getCorrectValue($operator, stdClass $rule, $value)
+    protected function getCorrectValue(mixed $operator, stdClass $rule, mixed $value): mixed
     {
         $field = $rule->field;
         $sqlOperator = $this->operator_sql[$rule->operator];
@@ -197,9 +152,9 @@ class QueryBuilderParser
         $value = $this->enforceArrayOrString($requireArray, $value, $field);
 
         /*
-        *  Turn datetime into Carbon object so that it works with "between" operators etc.
-        */
-        if ($rule->type == 'date') {
+         *  Turn datetime into Carbon object so that it works with "between" operators etc.
+         */
+        if ($rule->type === 'date') {
             $value = $this->convertDatetimeToCarbon($value);
         }
 
@@ -214,23 +169,18 @@ class QueryBuilderParser
      * Make sure that all the correct fields are in the rule object then add the expression to
      * the query that was given by the user to the QueryBuilder.
      *
-     * @param EloquentBuilder|Builder $query
-     * @param stdClass $rule
-     * @param string $queryCondition and/or...
-     *
      * @throws QBParseException
-     *
-     * @return Builder
      */
-    protected function makeQuery(EloquentBuilder|Builder $query, stdClass $rule, $queryCondition = 'AND')
+    protected function makeQuery(EloquentBuilder|Builder $query, stdClass $rule, string $queryCondition = 'AND'): EloquentBuilder|Builder
     {
         /*
          * Ensure that the value is correct for the rule, return query on exception
          */
         $this->validateCondition($queryCondition);
+
         try {
             $value = $this->getValueForQueryFromRule($rule);
-        } catch (QBRuleException $e) {
+        } catch (QBRuleException) {
             return $query;
         }
 
@@ -243,14 +193,15 @@ class QueryBuilderParser
      * (This used to be part of makeQuery, where the name made sense, but I pulled it
      * out to reduce some duplicated code inside JoinSupportingQueryBuilder)
      *
-     * @param Builder $query
-     * @param stdClass $rule
      * @param mixed $value the value that needs to be queried in the database.
-     * @param string $queryCondition and/or...
-     * @return Builder
+     * @throws QBParseException
      */
-    protected function convertIncomingQBtoQuery(EloquentBuilder|Builder $query, stdClass $rule, $value, $queryCondition = 'AND')
-    {
+    protected function convertIncomingQBtoQuery(
+        EloquentBuilder|Builder $query,
+        stdClass $rule,
+        mixed $value,
+        string $queryCondition = 'AND'
+    ): EloquentBuilder|Builder {
         /*
          * Convert the Operator (LIKE/NOT LIKE/GREATER THAN) given to us by QueryBuilder
          * into on one that we can use inside the SQL query
@@ -261,7 +212,9 @@ class QueryBuilderParser
 
         if ($this->operatorRequiresArray($operator)) {
             return $this->makeQueryWhenArray($query, $rule, $sqlOperator, $value, $condition);
-        } elseif ($this->operatorIsNull($operator)) {
+        }
+
+        if ($this->operatorIsNull($operator)) {
             return $this->makeQueryWhenNull($query, $rule, $sqlOperator, $condition);
         }
 
@@ -270,18 +223,17 @@ class QueryBuilderParser
 
     /**
      * Add a filter for cleaning values that are inputted from a QueryBuilder (eg, for ACL)
-     * @param $field
+     *
      * @param callable|null $callback
-     * @return $this
-     * @throws \timgws\QBParseException
+     * @throws QBParseException
      */
-    public function clean($field, Callable $callback = null)
+    public function clean(string $field, ?callable $callback = null): self
     {
         if (isset($this->cleanFieldCallbacks[$field])) {
             throw new QBParseException("Field $field already has a clean callback set.");
         }
 
-        if ($callback == null) {
+        if ($callback === null) {
             return $this;
         }
 
@@ -293,19 +245,15 @@ class QueryBuilderParser
     /**
      * Ensure that the value is correct for the rule, try and set it if it's not.
      *
-     * @param stdClass $rule
-     *
      * @throws QBRuleException
-     * @throws \timgws\QBParseException
-     *
-     * @return mixed
+     * @throws QBParseException
      */
-    protected function getValueForQueryFromRule(stdClass $rule)
+    protected function getValueForQueryFromRule(stdClass $rule): mixed
     {
         /*
          * Make sure most of the common fields from the QueryBuilder have been added.
          */
-        if (isset($this->cleanFieldCallbacks[$rule->field])) {
+        if (isset($rule->field, $this->cleanFieldCallbacks[$rule->field])) {
             $rule->value = call_user_func($this->cleanFieldCallbacks[$rule->field], $rule->value);
         }
 
@@ -333,8 +281,6 @@ class QueryBuilderParser
         /*
          * \o/ Ensure that the value is an array only if it should be.
          */
-        $value = $this->getCorrectValue($operator, $rule, $value);
-
-        return $value;
+        return $this->getCorrectValue($operator, $rule, $value);
     }
 }

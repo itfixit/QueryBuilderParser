@@ -1,5 +1,5 @@
 <?php
-namespace timgws\test\Mocks;
+namespace timgws\tests\Mocks;
 
 
 /**
@@ -7,12 +7,11 @@ namespace timgws\test\Mocks;
  *
  * Connection, with mocked collection.
  *
- * @package timgws\test\Mocks
+ * @package timgws\tests\Mocks
  */
 class Connection extends \Jenssegers\Mongodb\Connection implements \Jenssegers\Mongodb\Contracts\ConnectionContract
 {
-
-    private $mockedCollection;
+    private object|null $mockedCollection = null;
 
     /**
      * Get a MongoDB collection.
@@ -20,14 +19,14 @@ class Connection extends \Jenssegers\Mongodb\Connection implements \Jenssegers\M
      * @param  string   $name
      * @return Collection
      */
-    public function setCollection($name)
+    public function setCollection(string $name): object
     {
         $this->mockedCollection = \Mockery::mock('MongoCollection');
 
         return $this->mockedCollection;
     }
 
-    public function getCollection($name)
+    public function getCollection(string $name): object
     {
         if (is_null($this->mockedCollection)) {
             return $this->setCollection($name);
