@@ -662,4 +662,5 @@ class QueryBuilderParserTest extends CommonQueryBuilderTests
 
         $this->assertEquals('select *', $builder->toSql());
     }
+
 }
